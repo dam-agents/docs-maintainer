@@ -10,7 +10,8 @@ for the owner, and the fix happens in the direct session.
      `docs-maintainer-*` schedules. A missing one is red. A disabled one is amber unless
      the owner turned it off on purpose (note it in `work/MEMORY.md`).
    - **open PRs**: every PR this agent opened that is still open after 7 days is amber,
-     named with its number.
+     named with its number. Under `release_model: main`, more than one open `update/`
+     PR is red ([update.md](update.md)).
    - **queue honesty**: sample three `obsolete` or `carried` rows from the last 30 days and
      confirm each reason still holds at the boundary.
    - **deploy drift** (only with `deploy_command`): say whether the deployed site is behind

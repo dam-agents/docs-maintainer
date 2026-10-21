@@ -44,7 +44,7 @@ warn() { WARNS=$((WARNS+1)); printf 'warn %s — %s\n' "$1" "$2"; }
 . "$SCRIPT_DIR/lib/config.sh" || { echo "cannot source lib/config.sh" >&2; exit 1; }
 
 KNOWN_KEYS="source_repo source_branch docs_repo docs_branch docs_path release_model
-stable_tag_pattern release_check flags_path branch_pass_days triage_ignore triage_batch
+stable_tag_pattern release_check flags_path triage_ignore triage_batch
 verify_pages_per_sweep structure_changes build_command deploy_command reviewers
 commit_name commit_email commit_trailer run_model report_channel report_chat
 owner_member_id audit_report definition_repo log_level"
@@ -106,12 +106,12 @@ else
   enum() { local v; v="$(cfg "$1")"; [ -z "$v" ] && return 0
            printf '%s' " $2 " | grep -qF " $v " && ok "enum_$1" "$v" \
              || fail "enum_$1" "$1 is '$v'" "one of: $2"; }
-  enum release_model "tags branch"
+  enum release_model "tags main"
   enum structure_changes "ask allow"
   enum report_channel "slack telegram"
   enum audit_report "enabled disabled"
   enum log_level "info debug"
-  for k in triage_batch verify_pages_per_sweep branch_pass_days; do
+  for k in triage_batch verify_pages_per_sweep; do
     v="$(cfg "$k")"; [ -z "$v" ] || printf '%s' "$v" | grep -qE '^[0-9]+$' \
       || fail "number_$k" "$k is '$v'" "a whole number"
   done

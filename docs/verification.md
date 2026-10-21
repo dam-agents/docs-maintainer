@@ -12,9 +12,11 @@ you in `worklist.boundary`, so never derive it by hand in a gated run.
 - `release_model: tags`: the newest tag matching `stable_tag_pattern`. Release
   candidates, betas and other pre-releases never count, whatever the highest tag is.
   A tag version sort puts `v1.2-rc2` above `v1.2` unless you filter first.
-- `release_model: branch`: the head of `source_branch`, pinned to a commit sha at the
-  start of the pass. There is no "unreleased" work then, only commits since the last
-  pass.
+- `release_model: main`: the head of `source_branch`, pinned to a commit sha when the
+  run starts. Users run main, so there is no "unreleased" work, only commits since the
+  last documented one ([update.md](update.md)). Tag and release checks below do not
+  apply, but everything about *how to read the source* does: read at the pin, never at a
+  moving branch.
 - **Cross-check, never trust one signal.** Where `release_check` names a second source
   (a package registry's `latest` tag, a live `/version` endpoint), it must agree with the
   tag before you call a release shipped. A hosting service's Releases page is **not**

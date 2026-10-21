@@ -193,7 +193,14 @@ keep every existing value and ask only for what is missing.
 
 ### Round 2 — what counts as released
 
-4. **How do users get the software?** Detect from the source repo's tags:
+4. **What do your users run: tagged releases, or main?** This decides how the agent
+   works, so ask it plainly and explain the two in one line each:
+   - *Releases*: I document the latest stable release. New commits wait in my queue until
+     a release ships them, then each release gets one thorough pull request.
+   - *Main*: I document main as it is. New commits are documented the day they land, in
+     one rolling update pull request.
+
+   Offer what the tags suggest:
 
    ```bash
    git ls-remote --tags --refs "$(gh repo view <source_repo> --json url -q .url)" | sed 's|.*refs/tags/||' | sort -V | tail -15
@@ -202,9 +209,9 @@ keep every existing value and ask only for what is missing.
    - Tags exist → `release_model: tags`. Propose a `stable_tag_pattern` that matches the
      stable ones and **excludes** pre-releases (`-rc`, `-beta`, `-alpha`, `.dev`). Show
      the owner which tag it picks as the current release, and get it confirmed.
-   - No tags, or the owner says the default branch is what users run →
-     `release_model: branch` and `branch_pass_days` [7].
-5. **A second signal for a release?** [none] A package registry or a version endpoint →
+   - No stable tags, or the owner says users run the default branch →
+     `release_model: main`. Skip questions 5 and the tag pattern.
+5. **A second signal for a release?** (`tags` only) [none] A package registry or a version endpoint →
    `release_check`. Offer it only when one obviously exists (a `package.json` with a
    `name`, a `pyproject.toml`).
 6. **Feature flags?** [none] If the source has a file listing flags whose surfaces are
@@ -246,7 +253,6 @@ Instance configuration for this docs maintainer. Semantics: docs/config.md.
 - stable_tag_pattern: ^v?[0-9]+\.[0-9]+\.[0-9]+$
 - release_check:
 - flags_path:
-- branch_pass_days: 7
 - triage_ignore: ^(ci|test|build)(\(.*\))?:
 - triage_batch: 50
 - verify_pages_per_sweep: 0
@@ -278,10 +284,12 @@ Apply every `FAIL` line's `fix:`, re-run until it passes, and show the file to t
 
 The first pass needs a starting point. Ask the owner:
 
-- **"The site is accurate for the current release"** → write the current boundary to
-  `work/BOUNDARY`. Sweeps then queue only what comes after it.
+- **"The site is accurate for the current release"** (with `main`: *for main as it is
+  today*) → write the current boundary to `work/BOUNDARY`: the stable tag, or with `main`
+  the current head commit sha. Sweeps then handle only what comes after it.
 - **"I don't know" / "it's behind"** (the default) → leave `work/BOUNDARY` absent. The first
-  release run does a **baseline pass**: it verifies the site against the current release,
+  release run does a **baseline pass**: it verifies the site against the current release
+  (or, with `main`, the current head),
   queues every finding, and opens one PR with the corrections. Say it will be the
   largest PR this agent ever opens.
 
@@ -290,7 +298,8 @@ bash "$HOME/scripts/preflight.sh" release | jq '{nothing_to_do, release_due, log
 ```
 
 Show the owner the boundary this resolves. If it is not the release they expect, fix
-`stable_tag_pattern` and re-run before going on.
+`stable_tag_pattern` and re-run before going on. With `main` the baseline pass is the only
+work the release watch ever does; after that, the weekday sweep keeps the docs current.
 
 ## Step 5 — Register the scheduled runs
 
@@ -313,9 +322,9 @@ your own. Never use an in-process cron.
 > JSON at the path its output names, and never run preflight.sh again this run. If the
 > prompt carries no worklist path, run `bash "$HOME/scripts/preflight.sh" sweep`
 > yourself. Then follow CLAUDE.md → "Sweep run": read exactly the worklist's read_set,
-> triage every untriaged source commit into the queue, fix each verified correction in
-> fixes_due as its own small pull request, report per docs/reporting.md, and back up
-> work/ at the end with `bash "$HOME/scripts/work-backup.sh" persist` when
+> triage every untriaged source commit, fix each verified correction in fixes_due as its
+> own small pull request, write update_due per docs/update.md when present, report per
+> docs/reporting.md, and back up work/ at the end with `bash "$HOME/scripts/work-backup.sh" persist` when
 > $GITHUB_REPO_WORK is set.
 
 - `docs-maintainer-release-hourly`: `23 * * * *`, precheck

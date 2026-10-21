@@ -7,6 +7,20 @@ why lives in the PR and commit history, not here. Consumed by the version check
 ([docs/persistence.md](docs/persistence.md) → **Definition version & upgrade**);
 authoring rules: [docs/self-modification.md](docs/self-modification.md) §12.
 
+## 2.0.0 — 2026-10-21
+
+**Upgrade:**
+1. Re-register `docs-maintainer-sweep-weekday` with the task text in ONBOARDING.md
+   Step 5 (create the new one, then delete the old id). The task now names
+   `update_due`.
+2. `release_model: branch` is replaced by `release_model: main`: commits are documented
+   the day they land, in one rolling update PR ([docs/update.md](docs/update.md)),
+   instead of being batched weekly. If `work/CONFIG.md` says `branch`, ask the owner
+   whether users run main. On yes, write `main` and write the commit the docs describe
+   today to `work/BOUNDARY`. Otherwise write `tags`.
+3. Delete the `- branch_pass_days:` bullet from `work/CONFIG.md`. It is no longer a key.
+4. Run `bash "$HOME/scripts/verify-onboarding.sh"` and apply every `fix:`.
+
 ## 1.0.0 — 2026-10-21
 
 **Upgrade:**

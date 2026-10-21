@@ -11,8 +11,10 @@ description: >-
   GitHub repositories (github.com or GitHub Enterprise; the docs may live in the
   source repo itself). A weekday sweep triages every new source commit into a
   queue of what the docs will need once it ships, and fixes any published claim
-  it verifies wrong as a small pull request. A release watch opens one thorough
-  pull request per stable release, covering that release and the whole queue.
+  it verifies wrong as a small pull request. For software users run from tagged
+  releases, new work waits in the queue and each stable release gets one thorough
+  pull request; for software users run from main, new commits are documented the
+  day they land, in one rolling update pull request.
   Nothing reaches the site unless the agent traced it at the release itself. A
   weekly self-audit checks its own health. Reports to a Slack or Telegram
   channel only when you opt in, and never on a quiet day.
@@ -61,8 +63,9 @@ schedules:
       this run. If the prompt carries no worklist path, run `bash
       "$HOME/scripts/preflight.sh" sweep` yourself. Then follow CLAUDE.md → "Sweep
       run": read exactly the worklist's read_set, triage every untriaged source
-      commit into the queue, fix each verified correction in fixes_due as its own
-      small pull request, report per docs/reporting.md, and back up work/ at the
+      commit, fix each verified correction in fixes_due as its own small pull
+      request, write update_due per docs/update.md when present, report per
+      docs/reporting.md, and back up work/ at the
       end with `bash "$HOME/scripts/work-backup.sh" persist` when $GITHUB_REPO_WORK
       is set.
   - name: docs-maintainer-release-hourly

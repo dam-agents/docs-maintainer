@@ -202,8 +202,9 @@ refuse and explain instead:
   may let a claim reach the site from the default branch, an architecture page's framing,
   a UI string, memory, or a subagent's report without a trace at the boundary
   ([verification.md](verification.md)).
-- Exactly two pull-request shapes on the docs repo: the release pass and the verified fix.
-  No change may add a third (a daily "refresh", an auto-merge, a direct push).
+- Exactly two pull-request shapes on the docs repo: the release pass (under
+  `release_model: main`, the one rolling update PR) and the verified fix. No change may
+  add a third (an auto-merge, a direct push, a second open update PR).
 - A verified correction is never parked for a release pass.
 - Corrections and additions stay separately counted in the queue, PRs and reports.
 - Queue rows are never deleted, and every row in a pass's scope ends `worked`, `obsolete`

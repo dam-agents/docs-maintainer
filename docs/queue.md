@@ -46,7 +46,9 @@ For each untriaged commit, oldest first:
    - **Nothing a user could observe, or nothing the site says or should say** → one
      `TRIAGED.log` line with the reason.
    - **The docs will need to change once it ships** → an `unreleased` row with one line on
-     what they will then need to say.
+     what they will then need to say. Under `release_model: main` nothing is unreleased:
+     the change is written today ([update.md](update.md)), so no row is needed unless it
+     is `flagged`, `external`, or not yet verified.
    - **It proves the released site wrong today** → a `correction` row with evidence at the
      boundary, and add the sha to the sweep's fix list ([fix.md](fix.md)).
    - **Gated behind a flag** → a `flagged` row with the flag id.

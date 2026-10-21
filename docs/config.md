@@ -18,11 +18,10 @@ are `[<host>/]<owner>/<repo>`; a bare `owner/repo` means `github.com`.
 
 | Key | Default | Missing → | Meaning |
 | --- | --- | --- | --- |
-| `release_model` | `tags` | `tags` | `tags`: the boundary is the newest stable tag. `branch`: the boundary is `source_branch` itself, batched weekly. |
-| `stable_tag_pattern` | `^v?[0-9]+\.[0-9]+\.[0-9]+$` | that default | Extended regex a tag must match to count as stable. Pre-releases must **not** match. |
-| `release_check` | empty | none | Optional second signal the release pass cross-checks: `npm:<package>`, `pypi:<package>`, or `url:<https URL returning the version>`. |
+| `release_model` | `tags` | `tags` | What users run, and so what the docs describe. `tags`: the newest stable tag; new commits wait in the queue until a release ships them, and each release gets one pass. `main`: the head of `source_branch`; new commits are documented the day they land, in one rolling update PR ([update.md](update.md)). |
+| `stable_tag_pattern` | `^v?[0-9]+\.[0-9]+\.[0-9]+$` | that default | `tags` only. Extended regex a tag must match to count as stable. Pre-releases must **not** match. |
+| `release_check` | empty | none | `tags` only. Optional second signal the release pass cross-checks: `npm:<package>`, `pypi:<package>`, or `url:<https URL returning the version>`. |
 | `flags_path` | empty | none | Optional path at the boundary that lists feature flags. Gated surfaces are never documented. |
-| `branch_pass_days` | `7` | `7` | `release_model: branch` only: days between batched passes. |
 
 ## How the agent works
 

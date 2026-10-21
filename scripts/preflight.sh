@@ -6,7 +6,8 @@
 #   - NO external writes at all (git fetch / ls-remote / log only),
 #   - NO git commit/push (the agent persists at end of run),
 #   - local writes only: the bare caches under $CLONE_ROOT, `none` lines in
-#     work/TRIAGED.log for commits `triage_ignore` matches, and log lines.
+#     work/TRIAGED.log for commits `triage_ignore` matches, log lines, and (main
+#     mode) advancing work/BOUNDARY when every commit past it is already accounted for.
 #
 #   preflight.sh <sweep|release|audit>  -> one JSON object on stdout; everything else to stderr.
 #   .nothing_to_do == true  -> the agent ends the run immediately.
@@ -66,7 +67,6 @@ STABLE_RE="$(key stable_tag_pattern '^v?[0-9]+\.[0-9]+\.[0-9]+$')"
 IGNORE_RE="$(key triage_ignore)"
 BATCH="$(key triage_batch 50)"
 PAGES_N="$(key verify_pages_per_sweep 0)"
-PASS_DAYS="$(key branch_pass_days 7)"
 
 config_json() {
   jq -n \
@@ -74,7 +74,7 @@ config_json() {
     --arg docs_repo "$DOCS_REPO_V" --arg docs_branch "$DOCS_BRANCH_V" --arg docs_path "$DOCS_PATH_V" \
     --arg release_model "$RELEASE_MODEL_V" --arg stable_tag_pattern "$STABLE_RE" \
     --arg release_check "$(key release_check)" --arg flags_path "$(key flags_path)" \
-    --arg branch_pass_days "$PASS_DAYS" --arg triage_ignore "$IGNORE_RE" --arg triage_batch "$BATCH" \
+    --arg triage_ignore "$IGNORE_RE" --arg triage_batch "$BATCH" \
     --arg verify_pages_per_sweep "$PAGES_N" --arg structure_changes "$(key structure_changes ask)" \
     --arg build_command "$(key build_command)" --arg deploy_command "$(key deploy_command)" \
     --arg reviewers "$(key reviewers)" --arg commit_name "$(key commit_name)" \
@@ -88,7 +88,6 @@ config_json() {
 
 case "$BATCH" in (''|*[!0-9]*) BATCH=50;; esac
 case "$PAGES_N" in (''|*[!0-9]*) PAGES_N=0;; esac
-case "$PASS_DAYS" in (''|*[!0-9]*) PASS_DAYS=7;; esac
 
 # ---------------------------------------------------------------- git ----
 # `[<host>/]<owner>/<repo>` -> clone URL. DM_URL_BASE lets the offline tests use file://.
@@ -121,9 +120,10 @@ stable_tag() {
   git -C "$SRC" tag -l 2>/dev/null | grep -E -- "$STABLE_RE" | sort -V | tail -1
 }
 
-# The boundary the docs describe now: a tag name, or a commit sha in branch mode.
+# The boundary the docs describe now: a tag name, or (release_model: main) the head
+# commit of source_branch, pinned for the run.
 resolve_boundary() {
-  if [ "$RELEASE_MODEL_V" = branch ]; then
+  if [ "$RELEASE_MODEL_V" = main ]; then
     git -C "$SRC" rev-parse "refs/remotes/origin/$SOURCE_BRANCH_V" 2>/dev/null
   else
     stable_tag
@@ -157,8 +157,14 @@ mode_sweep() {
   head="$(git -C "$SRC" rev-parse "refs/remotes/origin/$SOURCE_BRANCH_V" 2>/dev/null)" \
     || fail_out "branch $SOURCE_BRANCH_V not found in $SOURCE_REPO_V"
   boundary="$(resolve_boundary)"
-  if [ "$RELEASE_MODEL_V" = branch ]; then
-    base="${LAST_BOUNDARY:-$head}"
+  if [ "$RELEASE_MODEL_V" = main ]; then
+    # main is what users run: everything past the last documented commit is due now
+    if [ -z "$LAST_BOUNDARY" ]; then
+      log "no documented commit yet — the release run does the baseline pass first"; quiet_out
+    fi
+    git -C "$SRC" merge-base --is-ancestor "$LAST_BOUNDARY" "$head" 2>/dev/null \
+      || fail_out "documented commit $LAST_BOUNDARY is not on $SOURCE_BRANCH_V (force-push?) — re-baseline in the direct session"
+    base="$LAST_BOUNDARY"
   elif [ -z "$boundary" ]; then
     log "no tag matches stable_tag_pattern — nothing released to compare against"
     base=""
@@ -169,7 +175,7 @@ mode_sweep() {
   fi
 
   # ---- untriaged commits: differenced by sha, never by count
-  local triage='[]' known n=0 ignored=0 sha subj
+  local triage='[]' known n=0 ignored=0 sha subj last_taken=""
   if [ -n "$base" ]; then
     known="$(known_shas)"
     while IFS="$(printf '\t')" read -r sha subj; do
@@ -181,6 +187,7 @@ mode_sweep() {
       fi
       [ "$n" -ge "$BATCH" ] && { n=$((n + 1)); continue; }
       triage="$(printf '%s' "$triage" | jq -c --arg sha "${sha:0:12}" --arg s "$subj" '. + [{id:$sha, sha:$sha, subject:$s}]')"
+      last_taken="$sha"
       n=$((n + 1))
     done <<EOF
 $(git -C "$SRC" log --reverse --no-merges --format='%H%x09%s' "$base..$head" 2>/dev/null)
@@ -212,21 +219,37 @@ EOF
     fi
   fi
 
+  # main mode: the commits are documented today, in one update pull request; the pin is
+  # the commit the docs will describe once it lands (the last one taken when batched)
+  local update='[]' pin="$head"
+  if [ "$RELEASE_MODEL_V" = main ]; then
+    [ "$n" -gt "$BATCH" ] && pin="$last_taken"
+    if [ "$(printf '%s' "$triage" | jq length)" -gt 0 ]; then
+      update="$(jq -nc --arg pin "$pin" --arg prev "$LAST_BOUNDARY" '[{id:$pin[0:12], pin:$pin, previous:$prev}]')"
+    elif [ "$head" != "$LAST_BOUNDARY" ]; then
+      # every commit past the pin is already accounted for (triaged, or matched
+      # triage_ignore): nothing to write, so moving the pin is bookkeeping, done here
+      printf '%s\n' "$head" > "$BOUNDARY_FILE.tmp" && mv -f "$BOUNDARY_FILE.tmp" "$BOUNDARY_FILE"
+      log "no docs impact past ${LAST_BOUNDARY:0:12} — pin advanced to ${head:0:12}"
+    fi
+  fi
+
   local work
-  work="$(jq -n --argjson t "$triage" --argjson f "$fixes" --argjson p "$pages" \
-    '($t|length) + ($f|length) + ($p|length)')"
+  work="$(jq -n --argjson t "$triage" --argjson f "$fixes" --argjson p "$pages" --argjson u "$update" \
+    '($t|length) + ($f|length) + ($p|length) + ($u|length)')"
   [ "$work" -gt 0 ] || quiet_out
 
   READ_SET=(docs/verification.md docs/reporting.md)
   [ "$(printf '%s' "$triage" | jq length)" -gt 0 ] && READ_SET+=(docs/queue.md)
+  [ "$(printf '%s' "$update" | jq length)" -gt 0 ] && READ_SET+=(docs/update.md)
   [ "$(printf '%s' "$fixes" | jq length)" -gt 0 ] && READ_SET+=(docs/fix.md)
   [ "$(printf '%s' "$pages" | jq length)" -gt 0 ] && READ_SET+=(docs/queue.md)
   jq -n --arg mode sweep --arg boundary "$boundary" --arg base "$base" --arg head "$head" \
-    --argjson triage "$triage" --argjson fixes "$fixes" --argjson pages "$pages" \
+    --argjson triage "$triage" --argjson fixes "$fixes" --argjson pages "$pages" --argjson update "$update" \
     --argjson read_set "$(printf '%s\n' "${READ_SET[@]}" | sort -u | jq -R . | jq -sc .)" \
     --argjson config "$(config_json)" --argjson logs "$(logs_json)" \
     '{mode:$mode, nothing_to_do:false, boundary:$boundary, merge_base:$base, source_head:$head,
-      triage_due:$triage, fixes_due:$fixes, pages_due:$pages, read_set:$read_set,
+      triage_due:$triage, fixes_due:$fixes, pages_due:$pages, update_due:$update, read_set:$read_set,
       config:$config, logs:$logs}'
 }
 
@@ -250,12 +273,9 @@ mode_release() {
   [ -n "$boundary" ] || { log "no tag matches stable_tag_pattern"; quiet_out; }
   [ "$boundary" = "$LAST_BOUNDARY" ] && { log "documented boundary $boundary is current"; quiet_out; }
 
-  if [ "$RELEASE_MODEL_V" = branch ]; then
-    local last_pass
-    last_pass="$(tail -1 "$WORK/logs/RELEASES.log" 2>/dev/null | cut -d' ' -f1)"
-    if [ -n "$last_pass" ] && [ $(( (NOW_EPOCH - $(iso2epoch "$last_pass")) / 86400 )) -lt "$PASS_DAYS" ]; then
-      log "branch mode: last pass $last_pass, next after $PASS_DAYS day(s)"; quiet_out
-    fi
+  if [ "$RELEASE_MODEL_V" = main ]; then
+    # no releases: this run only ever does the one-time baseline; the sweep does the rest
+    [ -n "$LAST_BOUNDARY" ] && { log "release_model main: the weekday sweep documents main"; quiet_out; }
   elif [ -n "$LAST_BOUNDARY" ]; then
     # only a NEWER stable tag is a release; a deleted or re-pointed tag is the audit's
     if [ "$(printf '%s\n%s\n' "$LAST_BOUNDARY" "$boundary" | sort -V | tail -1)" != "$boundary" ]; then
@@ -293,6 +313,9 @@ mode_audit() {
     local b; b="$(resolve_boundary)"
     if [ -z "$b" ]; then check boundary fail "no tag matches stable_tag_pattern — fix the pattern in work/CONFIG.md"
     elif [ "$b" = "$LAST_BOUNDARY" ]; then check boundary ok "documented boundary $b is current"
+    elif [ "$RELEASE_MODEL_V" = main ] && [ -n "$LAST_BOUNDARY" ]; then
+      local behind; behind="$(git -C "$SRC" rev-list --count "$LAST_BOUNDARY..$b" 2>/dev/null || echo '?')"
+      check boundary ok "docs describe ${LAST_BOUNDARY:0:12}, $behind commit(s) behind $SOURCE_BRANCH_V (the sweep catches up)"
     else check boundary warn "boundary ${b} not yet documented (documented: ${LAST_BOUNDARY:-none})"; fi
     [ -n "$LAST_BOUNDARY" ] && [ "$RELEASE_MODEL_V" = tags ] \
       && ! git -C "$SRC" rev-parse -q --verify "refs/tags/$LAST_BOUNDARY" >/dev/null 2>&1 \

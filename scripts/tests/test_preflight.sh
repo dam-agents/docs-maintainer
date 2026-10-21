@@ -103,4 +103,29 @@ out="$(pf audit)"
 expect "checks present" '(.checks | length) > 5 and .nothing_to_do == false' "$out"
 expect "queue shape ok" '[.checks[] | select(.id=="queue_shape")][0].status == "ok"' "$out"
 
+echo "main mode: the docs follow the branch head"
+sed -i 's/^- release_model: tags$/- release_model: main/' "$WORK_DIR/CONFIG.md"
+rm -f "$WORK_DIR/BOUNDARY"
+out="$(pf release)"
+expect "baseline due at the head commit" '.release_due[0].baseline == true and (.release_due[0].boundary | test("^[0-9a-f]{40}$"))' "$out"
+expect "sweep waits for the baseline" '.nothing_to_do == true' "$(pf sweep)"
+HEAD1="$(git -C "$T/src" rev-parse HEAD)"; echo "$HEAD1" > "$WORK_DIR/BOUNDARY"
+expect "release watch quiet once baselined" '.nothing_to_do == true' "$(pf release)"
+expect "sweep quiet at the head" '.nothing_to_do == true' "$(pf sweep)"
+push() { git -C "$T/remote/acme/widgets.git" fetch -q "$T/src" '+refs/heads/*:refs/heads/*'; }
+echo docs > "$T/src/g1"; g add .; g commit -m "feat: new flag --region"; push
+out="$(pf sweep)"
+expect "new commit triaged today" '(.triage_due | length) == 1 and .triage_due[0].subject == "feat: new flag --region"' "$out"
+HEAD2="$(git -C "$T/src" rev-parse HEAD)"
+expect "update pinned to the new head" ".update_due[0].pin == \"$HEAD2\" and .update_due[0].previous == \"$HEAD1\"" "$out"
+expect "reads update.md" '.read_set | index("docs/update.md") != null' "$out"
+printf '%s 2026-01-01T00:00:00Z none test\n' "${HEAD2:0:12}" >> "$WORK_DIR/TRIAGED.log"
+echo ci2 > "$T/src/ci2"; g add .; g commit -m "ci: more pipeline"; push
+HEAD3="$(git -C "$T/src" rev-parse HEAD)"
+expect "only no-impact commits -> quiet" '.nothing_to_do == true' "$(pf sweep)"
+[ "$(cat "$WORK_DIR/BOUNDARY")" = "$HEAD3" ] && echo "  ok   pin advanced by the pre-flight" \
+  || { echo "  FAIL pin not advanced ($(cat "$WORK_DIR/BOUNDARY"))"; fails=$((fails+1)); }
+echo 0000000000000000000000000000000000000000 > "$WORK_DIR/BOUNDARY"
+expect "pin off the branch -> error, never quiet" '.error | test("not on")' "$(pf sweep)"
+
 [ "$fails" -eq 0 ]
