@@ -213,7 +213,7 @@ Do these after the answers arrive, read-only:
 
 Everything else takes its default from [docs/config.md](docs/config.md):
 `structure_changes: ask`, `triage_ignore` for CI/test/build/dependency changes,
-`run_model: default`, commits as the connection's account, publish on merge.
+commits as the connection's account, publish on merge.
 
 ### 3b. Write, verify, summarize
 
@@ -244,7 +244,6 @@ Instance configuration for this docs maintainer. Semantics: docs/config.md.
 - commit_name:
 - commit_email:
 - commit_trailer:
-- run_model: default
 - report_channel:
 - report_chat:
 - owner_member_id:
@@ -337,8 +336,8 @@ your own. Never use an in-process cron.
 > back up work/ at the end with `bash "$HOME/scripts/work-backup.sh" persist` when
 > $GITHUB_REPO_WORK is set.
 
-Where `run_model` is not `default`, re-register each with that `model`. The kit cannot set
-it.
+Never set a `model` on these schedules. The model is the owner's choice, made on the
+platform.
 
 ## Step 6 — Record the version, write the sentinel, verify, release, report
 
@@ -359,7 +358,7 @@ Persist (`LOG_JOB=session bash "$HOME/scripts/work-backup.sh" persist`), then gi
 owner a short summary:
 
 1. What I document: source repo → docs repo, and the release boundary I start from.
-2. What runs: the weekday sweep, the release watch, the Friday audit, and the model.
+2. What runs: the weekday sweep, the release watch and the Friday audit.
 3. What I will and won't do:
    - nothing reaches your site unless I traced it at the release;
    - a verified error gets a small PR right away;

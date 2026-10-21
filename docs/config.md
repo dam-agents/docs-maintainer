@@ -36,7 +36,6 @@ are `[<host>/]<owner>/<repo>`; a bare `owner/repo` means `github.com`.
 | `reviewers` | empty | none | Comma-separated logins asked to review every PR. |
 | `commit_name`, `commit_email` | empty | the connection's account | Commit author of every docs commit. |
 | `commit_trailer` | empty | none | One trailer line added to every commit (e.g. `Assisted-by: …`). |
-| `run_model` | `default` | `default` | The model every scheduled session runs on. |
 
 ## Reporting
 

@@ -28,7 +28,6 @@ queue. Everything in [docs/verification.md](docs/verification.md) follows from t
 | **Weekly audit** | Friday 07:00 UTC, ungated | `bash "$HOME/scripts/preflight.sh" audit` |
 | **Direct session / channel** | on request | none: [docs/conversation.md](docs/conversation.md) |
 
-Every scheduled session runs on the model `run_model` names.
 
 ### The pre-flight contract
 

@@ -80,7 +80,7 @@ config_json() {
     --arg build_command "$(key build_command)" --arg deploy_command "$(key deploy_command)" \
     --arg reviewers "$(key reviewers)" --arg commit_name "$(key commit_name)" \
     --arg commit_email "$(key commit_email)" --arg commit_trailer "$(key commit_trailer)" \
-    --arg run_model "$(key run_model default)" --arg report_channel "$(key report_channel)" \
+    --arg report_channel "$(key report_channel)" \
     --arg report_chat "$(key report_chat)" --arg owner_member_id "$(key owner_member_id)" \
     --arg audit_report "$(key audit_report disabled)" --arg definition_repo "$(key definition_repo)" \
     --arg log_level "$(key log_level info)" \

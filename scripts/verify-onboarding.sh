@@ -46,7 +46,7 @@ warn() { WARNS=$((WARNS+1)); printf 'warn %s — %s\n' "$1" "$2"; }
 KNOWN_KEYS="source_repo source_branch docs_repo docs_branch docs_path release_model
 stable_tag_pattern release_check flags_path triage_ignore triage_batch
 verify_pages_per_sweep structure_changes build_command deploy_command reviewers
-commit_name commit_email commit_trailer run_model report_channel report_chat
+commit_name commit_email commit_trailer report_channel report_chat
 owner_member_id audit_report definition_repo log_level"
 
 if [ "$STRUCTURE" = 1 ]; then
