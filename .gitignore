@@ -1,0 +1,30 @@
+# This repository (the docs-maintainer definition) is checked out at the agent's HOME
+# root (/home/agent), which also contains secrets and runtime state (.ssh, .claude,
+# .config, work/, ...). To make `git add -A` safe and never capture those, ignore
+# EVERYTHING at the top level by default, then re-include only the definition files this
+# repo actually tracks.
+#
+# NOTE: NOTHING under work/ is tracked — it is all runtime state, seeded on a fresh
+# volume from the templates in ONBOARDING.md, not from this repo. The `/*` rule hides
+# every untracked top-level path; only the re-included definition files are versioned.
+# This lets a deployed instance update the definition (fast-forward; a hard reset
+# only for a diverged checkout) without ever colliding with its live work/ state.
+
+/*
+
+!/.gitignore
+!/CLAUDE.md
+!/AGENTS.md
+!/README.md
+!/ONBOARDING.md
+!/kit.yaml
+!/VERSION
+!/CHANGELOG.md
+!/LICENSE
+!/docs/
+!/scripts/
+!/.github/
+
+# Never track these even if a future allowlist entry would pull them in.
+.DS_Store
+.claude/settings.local.json

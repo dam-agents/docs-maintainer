@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/dam-agents/dam-starter-kits/main/kit.schema.json
+# The Starter Kit for docs-maintainer. It lives beside the definition it seeds, so a
+# change to the agent and a change to the kit offering it are the same commit.
+# ONBOARDING.md is the source of truth for every schedule below; the task texts here
+# are verbatim copies of its blockquotes (scripts/validate-definition.sh compares them).
+schemaVersion: v1
+id: docs-maintainer
+name: Docs Maintainer
+description: >-
+  Keeps a documentation site true to the software it documents, for any pair of
+  GitHub repositories (github.com or GitHub Enterprise; the docs may live in the
+  source repo itself). A weekday sweep triages every new source commit into a
+  queue of what the docs will need once it ships, and fixes any published claim
+  it verifies wrong as a small pull request. A release watch opens one thorough
+  pull request per stable release, covering that release and the whole queue.
+  Nothing reaches the site unless the agent traced it at the release itself. A
+  weekly self-audit checks its own health. Reports to a Slack or Telegram
+  channel only when you opt in, and never on a quiet day.
+tagline: Your docs, verified against every release.
+category: software
+icon: book
+harnesses: [claude-code, codex, bob]
+docsUrl: https://github.com/dam-agents/docs-maintainer
+# `self` is this repository at the commit the kit was resolved at; `home`, because
+# the checkout is /home/agent itself. The allowlist .gitignore makes that safe, and
+# runtime state lives beside it in work/, outside the repo.
+seed:
+  self: true
+  into: home
+# No `onboarding` block on purpose: the platform composes the briefing and ends it
+# with "follow ONBOARDING.md", which keeps the onboarding gate, the checklist tools
+# and the hold on the schedules below.
+connections:
+  - accepts: [github, github-enterprise]
+    required: true
+    note: >-
+      Reads the source repository and opens pull requests on the docs
+      repository. Grant one connection per host when the two repositories live
+      on different hosts. Use a bot or machine account where you can: the pull
+      requests are opened as whoever this connection signs in as.
+  - accepts: [slack, telegram]
+    required: false
+    note: >-
+      Only for reports. The agent posts a short note when it queued something,
+      opened a pull request, or found a published error, and stays silent on a
+      quiet day. Skip it to keep everything in chat.
+channels:
+  - type: slack
+    note: >-
+      The channel reports go to, once you turn reporting on during onboarding.
+      The owner can also ask for a pass or a status update there.
+schedules:
+  - name: docs-maintainer-sweep-weekday
+    cron: "0 6 * * 1-5"
+    description: Triages new source commits into the queue and fixes verified errors on the published site.
+    sessionMode: fresh
+    precheck: bash "$HOME/scripts/precheck.sh" sweep
+    task: >-
+      Docs sweep. The precheck already ran the pre-flight and found work: read the
+      worklist JSON at the path its output names, and never run preflight.sh again
+      this run. If the prompt carries no worklist path, run `bash
+      "$HOME/scripts/preflight.sh" sweep` yourself. Then follow CLAUDE.md → "Sweep
+      run": read exactly the worklist's read_set, triage every untriaged source
+      commit into the queue, fix each verified correction in fixes_due as its own
+      small pull request, report per docs/reporting.md, and back up work/ at the
+      end with `bash "$HOME/scripts/work-backup.sh" persist` when $GITHUB_REPO_WORK
+      is set.
+  - name: docs-maintainer-release-hourly
+    cron: "23 * * * *"
+    description: Wakes only when a new stable release exists, then runs the release pass as one pull request.
+    sessionMode: fresh
+    precheck: bash "$HOME/scripts/precheck.sh" release
+    task: >-
+      Release pass. The precheck already ran the pre-flight and found a release to
+      document: read the worklist JSON at the path its output names, and never run
+      preflight.sh again this run. If the prompt carries no worklist path, run `bash
+      "$HOME/scripts/preflight.sh" release` yourself. Then follow CLAUDE.md →
+      "Release run": read exactly the worklist's read_set, run the pass per
+      docs/release-pass.md as one pull request covering the release and the whole
+      open queue, report per docs/reporting.md, and back up work/ at the end with
+      `bash "$HOME/scripts/work-backup.sh" persist` when $GITHUB_REPO_WORK is set.
+  - name: docs-maintainer-audit-weekly
+    cron: "0 7 * * 5"
+    description: Checks the agent's own health, queue and open pull requests, and reports traffic-light.
+    sessionMode: fresh
+    task: >-
+      Weekly audit. Run `bash "$HOME/scripts/preflight.sh" audit` first — this run
+      is ungated. Then follow CLAUDE.md → "Audit run": read docs/audit.md, verify
+      the schedules, report traffic-light per docs/reporting.md, append the
+      AUDIT.log line, and back up work/ at the end with `bash
+      "$HOME/scripts/work-backup.sh" persist` when $GITHUB_REPO_WORK is set.
