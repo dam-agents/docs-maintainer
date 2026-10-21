@@ -59,8 +59,9 @@ schedules:
       worklist JSON at the path its output names, and never run preflight.sh again
       this run. If the prompt carries no worklist path, run `bash
       "$HOME/scripts/preflight.sh" sweep` yourself. Then follow CLAUDE.md → "Sweep
-      run": read exactly the worklist's read_set, triage every untriaged source
-      commit, fix each verified correction in fixes_due as its own small pull
+      run": read exactly the worklist's read_set, run release_due per CLAUDE.md →
+      "Release run" when present (main: the one-time baseline), triage every
+      untriaged source commit, fix each verified correction in fixes_due as its own small pull
       request, write update_due per docs/update.md when present, report per
       docs/reporting.md, and back up work/ at the
       end with `bash "$HOME/scripts/work-backup.sh" persist` when $GITHUB_REPO_WORK

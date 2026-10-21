@@ -6,8 +6,9 @@ for the owner, and the fix happens in the direct session.
 1. Run `bash "$HOME/scripts/preflight.sh" audit`. It returns `checks[]`
    (`{id, status: ok|warn|fail, detail}`) and `stats`.
 2. Add the agent-side checks:
-   - **schedules**: `mcp__platform-outbound__list_schedules` lists the three
-     `docs-maintainer-*` schedules. A missing one is red. A disabled one is amber unless
+   - **schedules**: `mcp__platform-outbound__list_schedules` lists the
+     `docs-maintainer-*` schedules: three with `tags`, two with `main` (no
+     `release-hourly`; one registered under `main` is amber). A missing one is red. A disabled one is amber unless
      the owner turned it off on purpose (note it in `work/MEMORY.md`).
    - **open PRs**: every PR this agent opened that is still open after 7 days is amber,
      named with its number. Under `release_model: main`, more than one open `update/`

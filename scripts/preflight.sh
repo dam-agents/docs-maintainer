@@ -176,7 +176,10 @@ mode_sweep() {
   if [ "$RELEASE_MODEL_V" = main ]; then
     # main is what users run: everything past the last documented commit is due now
     if [ -z "$LAST_BOUNDARY" ]; then
-      log "no documented commit yet — the release run does the baseline pass first"; quiet_out
+      # main has no release watch: the first sweep does the one-time baseline pass
+      release_in_progress && quiet_out
+      log "no documented commit yet — baseline pass at ${head:0:12}"
+      emit_release_due "$head"; exit 0
     fi
     git -C "$SRC" merge-base --is-ancestor "$LAST_BOUNDARY" "$head" 2>/dev/null \
       || fail_out "documented commit $LAST_BOUNDARY is not on $SOURCE_BRANCH_V (force-push?) — re-baseline in the direct session"
@@ -352,13 +355,7 @@ mode_release() {
   [ -f "$CONFIG" ] || fail_out "work/CONFIG.md missing — not onboarded"
   [ -n "$SOURCE_REPO_V" ] && [ -n "$DOCS_REPO_V" ] || fail_out "source_repo or docs_repo unset"
 
-  # A pass already running: one release, one pull request.
-  local marker="$WORK/.release-in-progress" age
-  if [ -f "$marker" ]; then
-    age=$(( NOW_EPOCH - $(iso2epoch "$(head -1 "$marker")") ))
-    if [ "$age" -lt 21600 ]; then log "a release pass is in progress (started $(head -1 "$marker"))"; quiet_out; fi
-    log "a release pass marker is $((age / 3600))h old — treating that pass as abandoned"
-  fi
+  release_in_progress && quiet_out
 
   sync_repo "$SRC" "$SOURCE_REPO_V" "$SOURCE_BRANCH_V" \
     || fail_out "cannot fetch $SOURCE_REPO_V ($SOURCE_BRANCH_V) — check the GitHub connection for its host"
@@ -368,8 +365,8 @@ mode_release() {
   [ "$boundary" = "$LAST_BOUNDARY" ] && { log "documented boundary $boundary is current"; quiet_out; }
 
   if [ "$RELEASE_MODEL_V" = main ]; then
-    # no releases: this run only ever does the one-time baseline; the sweep does the rest
-    [ -n "$LAST_BOUNDARY" ] && { log "release_model main: the weekday sweep documents main"; quiet_out; }
+    # no releases: the weekday sweep does the baseline and everything after it
+    log "release_model main: the weekday sweep documents main"; quiet_out
   elif [ -n "$LAST_BOUNDARY" ]; then
     # only a NEWER stable tag is a release; a deleted or re-pointed tag is the audit's
     if [ "$(printf '%s\n%s\n' "$LAST_BOUNDARY" "$boundary" | sort -V | tail -1)" != "$boundary" ]; then
@@ -377,12 +374,28 @@ mode_release() {
     fi
   fi
 
-  local commits=0
+  emit_release_due "$boundary"
+}
+
+# A pass already running: one release, one pull request. True (and logged) when a
+# marker younger than 6h exists.
+release_in_progress() {
+  local marker="$WORK/.release-in-progress" age
+  [ -f "$marker" ] || return 1
+  age=$(( NOW_EPOCH - $(iso2epoch "$(head -1 "$marker")") ))
+  if [ "$age" -lt 21600 ]; then log "a release pass is in progress (started $(head -1 "$marker"))"; return 0; fi
+  log "a release pass marker is $((age / 3600))h old — treating that pass as abandoned"
+  return 1
+}
+
+# The release_due worklist for <boundary>; under main it is only ever the baseline.
+emit_release_due() {
+  local boundary="$1" commits=0
   [ -n "$LAST_BOUNDARY" ] && commits="$(git -C "$SRC" rev-list --count "$LAST_BOUNDARY..$boundary" 2>/dev/null || echo 0)"
   log "release ${boundary} to document (previous: ${LAST_BOUNDARY:-none — baseline pass}, $commits commit(s) between)"
 
   READ_SET=(docs/verification.md docs/release-pass.md docs/queue.md docs/reporting.md)
-  jq -n --arg mode release --arg b "$boundary" --arg p "$LAST_BOUNDARY" --argjson c "$commits" \
+  jq -n --arg mode "$MODE" --arg b "$boundary" --arg p "$LAST_BOUNDARY" --argjson c "$commits" \
     --argjson open "$(open_rows | wc -l | tr -d ' ')" \
     --argjson read_set "$(printf '%s\n' "${READ_SET[@]}" | jq -R . | jq -sc .)" \
     --argjson config "$(config_json)" --argjson logs "$(logs_json)" \

@@ -54,4 +54,4 @@ are `[<host>/]<owner>/<repo>`; a bare `owner/repo` means `github.com`.
 | `log_level` | `info` | `info` | `debug` adds diagnostic events. Never gates behavior. |
 
 Changing `source_repo` or `docs_repo` on a live instance resets the boundary: write the
-new value, delete `work/BOUNDARY`, and the next release run does a baseline pass.
+new value, delete `work/BOUNDARY`, and the next release run (with `main`, the next sweep) does a baseline pass.
