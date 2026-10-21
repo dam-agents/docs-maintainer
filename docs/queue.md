@@ -24,39 +24,46 @@ One markdown table, one row per finding, appended. Never reorder or delete a row
   - `flagged`: shipped, but behind a feature flag (name the flag in `note`);
   - `external`: depends on something outside the boundary;
   - `upstream`: a product bug or a stale product string, never a docs claim.
-- `ref`: the commit sha for `unreleased`. For a released-site finding, the boundary it was
+- `ref`: the change's `key` (a 12-char commit sha) for `unreleased`. Name the pull request
+  in `note` when the change has one. For a released-site finding, the boundary it was
   verified at.
 - `page`: the docs path, or `—` when there is no page yet.
 - `evidence`: `<path> @ <ref>`. For an `unreleased` row that has no page impact, `—`.
 
-Commits the sweep judged to have **no docs impact** go to `work/TRIAGED.log`, one line each
-(`<sha> <UTC> none <one-line reason>`). Every sha the agent has looked at appears in
-exactly one of `QUEUE.md` or `TRIAGED.log`. That is how the pre-flight knows which shas
+Changes the sweep judged to have **no docs impact** go to `work/TRIAGED.log`, one line each
+(`<key> <UTC> none <one-line reason>`). Every change's `key` the agent has looked at appears
+in exactly one of `QUEUE.md` or `TRIAGED.log`. That is how the pre-flight knows which shas
 are new.
 
 ## Triage (`triage_due`)
 
-For each untriaged commit, oldest first:
+Each `triage_due` entry is **one change as it landed**: a merged pull request (`pr` set,
+`kind` `squash`, `merge` or `rebase`), or a commit pushed straight to the branch (`kind`
+`commit`). `range` covers every commit in it. For each, oldest first:
 
-1. Read the commit at its sha: the message, `--name-only`, then the diff of any file that
-   could reach a user.
-2. Grep the site for every user-facing term the commit touches. "No docs impact" needs that
+1. Read the change: `git log` and `git diff --name-only` over its `range`, then the diff
+   of any file that could reach a user. Where `pr` is set, read the pull request's
+   description too (`gh pr view <pr> -R <source_repo>`), for **context only**: it says what
+   the author meant, and it is often stale by merge. Every claim is still traced in the
+   code at the boundary (verification.md → **How to read the source**).
+2. Grep the site for every user-facing term the change touches. "No docs impact" needs that
    grep (verification.md → **What counts as an error**).
 3. Decide:
    - **Nothing a user could observe, or nothing the site says or should say** → one
-     `TRIAGED.log` line with the reason.
+     `TRIAGED.log` line under the `key`, with the reason.
    - **The docs will need to change once it ships** → an `unreleased` row with one line on
      what they will then need to say. Under `release_model: main` nothing is unreleased:
      the change is written today ([update.md](update.md)), so no row is needed unless it
      is `flagged`, `external`, or not yet verified.
    - **It proves the released site wrong today** → a `correction` row with evidence at the
-     boundary, and add the sha to the sweep's fix list ([fix.md](fix.md)).
+     boundary, and fix it this run ([fix.md](fix.md)).
    - **Gated behind a flag** → a `flagged` row with the flag id.
-4. Merge into existing rows rather than duplicating. A commit that changes a sentence
-   already queued updates that row's `note`.
+4. Record the decision under the entry's `key`, once for the whole change. Merge into
+   existing rows rather than duplicating: a change touching a sentence already queued
+   updates that row's `note`.
 
 **Derive the untriaged set from the shas, never from a count.** The pre-flight does this
-for you. A count can stay the same while new commits land and others are rebased away.
+for you. A count can stay the same while new changes land and others are rebased away.
 
 ## Released-site findings
 

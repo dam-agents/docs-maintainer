@@ -1,8 +1,10 @@
 # docs-maintainer
 
-A DAM Starter Kit that keeps documentation up to date with the software it documents.
+A DAM Starter Kit that catches the documentation drift code reviews miss.
 
-Point it at a source repository and a documentation repository on GitHub or GitHub Enterprise. The agent checks what your users actually run, verifies documentation against it, and opens pull requests for fixes and updates.
+Most teams update docs in the same pull request as the code, and should keep doing that. Docs still drift: a page is written from the pull request description rather than the code, a neighbouring page that says the same thing is never touched, or a later feature quietly makes an old sentence false. This agent works after the merge. It reads each merged pull request, checks the docs against what your users actually run, and opens pull requests for anything wrong or missing.
+
+Point it at a source repository and a documentation repository on GitHub or GitHub Enterprise.
 
 **The rule:** Documentation must reflect what users run. If a change can't be verified, it waits in a queue until it can.
 
@@ -13,7 +15,7 @@ Onboarding asks which of two ways your users get the software:
 
 ## How it works
 
-- **Daily:** Reviews new source changes. With tagged releases it queues documentation updates; with main it adds them to the open update pull request. Fixes verified errors in existing docs immediately.
+- **Daily:** Reviews each newly merged pull request (or direct push) once, as a whole. With tagged releases it queues documentation updates; with main it adds them to the open update pull request. Fixes verified errors in existing docs immediately.
 - **On release** (tagged releases only): Checks the release, re-verifies queued items, and opens a pull request with the necessary updates.
 - **Weekly:** Audits documentation health and reports issues.
 - **On request:** Runs a review, reports status, or deploys the site.

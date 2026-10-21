@@ -27,8 +27,8 @@ are `[<host>/]<owner>/<repo>`; a bare `owner/repo` means `github.com`.
 
 | Key | Default | Missing → | Meaning |
 | --- | --- | --- | --- |
-| `triage_ignore` | empty | none | Extended regex on a commit subject. Matching commits are logged as triaged with no impact (e.g. `^(ci\|test\|build)(\(.*\))?:`). |
-| `triage_batch` | `50` | `50` | Most commits triaged per sweep. The rest wait for the next sweep. |
+| `triage_ignore` | empty | none | Extended regex on a change's title (the pull request title, or the commit subject for a direct push). Matching changes are logged as triaged with no impact (e.g. `^(ci\|test\|build)(\(.*\))?:`). |
+| `triage_batch` | `50` | `50` | Most changes (merged pull requests or direct pushes) triaged per sweep. The rest wait for the next sweep. |
 | `verify_pages_per_sweep` | `0` | `0` | Pages re-verified from scratch per sweep, oldest-verified first. `0` keeps quiet days free; `1` or more means every weekday sweep wakes. |
 | `structure_changes` | `ask` | `ask` | `ask`: adding, deleting or moving a page waits for the owner. `allow`: the pass does it. |
 | `build_command` | empty | no build | Run in the docs clone before every PR (e.g. `mkdocs build --strict`). A failure blocks the PR. |

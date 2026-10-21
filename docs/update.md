@@ -14,8 +14,8 @@ The boundary is simply a commit instead of a tag.
 
 ## Procedure
 
-1. **Triage first.** Run every `triage_due` commit through [queue.md](queue.md) → **Triage**,
-   with one difference: in main mode a commit is never `unreleased`. A commit with docs
+1. **Triage first.** Run every `triage_due` change through [queue.md](queue.md) → **Triage**,
+   with one difference: in main mode a change is never `unreleased`. A change with docs
    impact is written **now**, in this update. Queue it only when it is `flagged`,
    `external`, or not yet verified.
 2. **One open update PR at a time.** Look for an open PR from a branch named
@@ -28,8 +28,9 @@ The boundary is simply a commit instead of a tag.
    → **Before a pull request**, against the pin.
 4. **Ship** it per [fix.md](fix.md) steps 4–5, with these differences:
    - title: `docs: update for <source_branch>@<pin:12> — N corrections, M additions`;
-   - body: the range `previous..pin`, corrections and additions as separate lists with
-     `path @ pin`, and anything queued instead, with the reason.
+   - body: the range `previous..pin`, the source pull requests it covers (`#n` each), the
+     corrections and additions as separate lists with `path @ pin`, and anything queued
+     instead, with the reason.
    - Push the branch, then open the PR, or update the one already open.
 5. **Write `pin` to `work/BOUNDARY`** only after the push succeeded. Mark the rows the
    update covers `worked` with the PR number.

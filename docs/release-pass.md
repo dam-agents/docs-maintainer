@@ -17,10 +17,11 @@ everything the release changed, and the entire open queue. The bar is that the r
 
 ## Read every commit, not just the queue
 
-The queue is a floor, never the scope. List the full range and read every commit:
+The queue is a floor, never the scope. List the full range and read every change in it,
+one merged pull request at a time (`--first-parent` keeps each one together):
 
 ```bash
-git -C "$SRC" log --oneline <previous>..<new>
+git -C "$SRC" log --oneline --first-parent <previous>..<new>
 git -C "$SRC" log --oneline "$(git -C "$SRC" merge-base <new> origin/<source_branch>)..<new>"
 ```
 
@@ -49,7 +50,8 @@ that has been removed makes its `flagged` rows documentable.
 - Title: `docs: <boundary> release pass — N corrections, M additions`.
 - Body:
   - the boundary and the previous one;
-  - corrections and additions in separate lists, each with `path @ ref`;
+  - corrections and additions in separate lists, each with `path @ ref` and the source
+    pull request it came from;
   - what was held back, as unreleased, flagged, external or carried, with the reason.
 - Request review from `reviewers`. When the token's own account is a reviewer the
   request is refused, so assign them instead.

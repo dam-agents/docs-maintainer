@@ -110,7 +110,7 @@ fi
 ```bash
 mkdir -p /home/agent/work/logs && cd /home/agent/work
 [ -f QUEUE-counter ] || echo 0 > QUEUE-counter
-touch TRIAGED.log VERIFIED.log logs/RELEASES.log logs/AUDIT.log
+touch TRIAGED.log UNITS.log VERIFIED.log logs/RELEASES.log logs/AUDIT.log
 [ -f QUEUE.md ] || cat > QUEUE.md <<'EOF'
 # Queue
 

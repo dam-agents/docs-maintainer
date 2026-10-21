@@ -7,13 +7,14 @@
 #   - NO git commit/push (the agent persists at end of run),
 #   - local writes only: the bare caches under $CLONE_ROOT, `none` lines in
 #     work/TRIAGED.log for commits `triage_ignore` matches, log lines, and (main
-#     mode) advancing work/BOUNDARY when every commit past it is already accounted for.
+#     mode) advancing work/BOUNDARY when every commit past it is already accounted for,
+#     and work/UNITS.log (member commit -> unit key) for multi-commit pull requests.
 #
 #   preflight.sh <sweep|release|audit>  -> one JSON object on stdout; everything else to stderr.
 #   .nothing_to_do == true  -> the agent ends the run immediately.
 #   otherwise               -> the agent processes the arrays per CLAUDE.md + docs/.
 #
-# Requires: bash, jq, git, sed/grep/cut/tr/sort, GNU date (Linux pod).
+# Requires: bash, jq, git, gh, sed/grep/cut/tr/sort, GNU date (Linux pod).
 
 set -u
 export LC_ALL=C GIT_TERMINAL_PROMPT=0
@@ -101,6 +102,12 @@ repo_url() {
 # lives off the home volume (a .git there corrupts under concurrent runs), and a pod
 # restart that wipes it costs one re-clone.
 SRC="$CLONE_ROOT/source.git"
+PR_CACHE="$CLONE_ROOT/pr-of"
+LOOKUP_MAX="${DM_PR_LOOKUP_MAX:-40}"
+case "$LOOKUP_MAX" in (''|*[!0-9]*) LOOKUP_MAX=40;; esac
+SRC_HOST=github.com; SRC_PATH="$SOURCE_REPO_V"
+case "$SOURCE_REPO_V" in (*/*/*) SRC_HOST="${SOURCE_REPO_V%%/*}"; SRC_PATH="${SOURCE_REPO_V#*/}";; esac
+gh_api() { timeout 15 gh api --hostname "$SRC_HOST" "$@"; }
 DOC="$CLONE_ROOT/docs.git"
 sync_repo() {  # <dir> <repo> <branch>
   local dir="$1" url; url="$(repo_url "$2")"
@@ -135,6 +142,15 @@ LAST_BOUNDARY="$(head -1 "$BOUNDARY_FILE" 2>/dev/null | tr -d '[:space:]')"
 
 # Every sha the agent has already looked at, as 12-char prefixes.
 known_shas() {
+  local direct; direct="$(known_direct)"
+  # a member of a multi-commit unit is known when its unit's key is (work/UNITS.log)
+  { printf '%s\n' "$direct"
+    [ -f "$WORK/UNITS.log" ] && while read -r m k; do
+      printf '%s\n' "$direct" | grep -qxF "$k" && printf '%s\n' "$m"
+    done < "$WORK/UNITS.log"
+  } | sort -u
+}
+known_direct() {
   { sed -nE 's/^\| Q[0-9]+ \| [a-z]+ \| [a-z]+ \| ([0-9a-f]{7,40}) \|.*/\1/p' "$WORK/QUEUE.md" 2>/dev/null
     sed -nE 's/^([0-9a-f]{7,40})[[:space:]].*/\1/p' "$WORK/TRIAGED.log" 2>/dev/null
   } | cut -c1-12 | sort -u
@@ -174,28 +190,106 @@ mode_sweep() {
       && log "release $boundary is newer than the documented $LAST_BOUNDARY — the release run picks it up"
   fi
 
-  # ---- untriaged commits: differenced by sha, never by count
-  local triage='[]' known n=0 ignored=0 sha subj last_taken=""
+  # ---- untriaged changes: one unit per merged pull request, differenced by sha
+  # Walk the first-parent line of source_branch: each commit there is one change as it
+  # landed. Squash merges ("… (#123)") and merge commits ("Merge pull request #123 …")
+  # name their PR in git itself. Anything else (a rebase merge, a direct push) is looked
+  # up once through the API, capped per run and cached. A unit's key is its newest
+  # commit on the first-parent line, and the agent records exactly that sha.
+  local triage='[]' known n=0 ignored=0 sha parents subj last_taken="" lookups=0 stopped=""
+  local kind pr title from body lookup_failed=""
+  local cur_key="" cur_pr="" u_kind="" u_title="" u_from="" u_count=0 u_members=""
+  flush() {  # emit the unit being built
+    [ -n "$cur_key" ] || return 0
+    local m
+    if [ "$u_kind" = rebase ] && [ -n "$cur_pr" ] && [ "$LOOKUP_MAX" -gt 0 ]; then
+      # a rebase merge carries commit subjects, not the PR's title: fetch it once
+      m="$(gh_api "repos/$SRC_PATH/pulls/$cur_pr" --jq .title 2>/dev/null)" && [ -n "$m" ] && u_title="$m"
+    fi
+    if [ -n "$IGNORE_RE" ] && printf '%s' "$u_title" | grep -qE -- "$IGNORE_RE"; then
+      for m in $u_members $cur_key; do
+        printf '%s %s none triage_ignore\n' "${m:0:12}" "$NOW_ISO" >> "$WORK/TRIAGED.log"
+      done
+      ignored=$((ignored + 1))
+    elif [ "$n" -ge "$BATCH" ]; then
+      n=$((n + 1))
+    else
+      triage="$(printf '%s' "$triage" | jq -c --arg key "${cur_key:0:12}" --arg kind "$u_kind" \
+        --arg pr "$cur_pr" --arg t "$u_title" --arg from "$u_from" --arg to "$cur_key" \
+        --argjson c "$u_count" \
+        '. + [{id:(if $pr != "" then "#" + $pr else $key end), key:$key, kind:$kind,
+               pr:(if $pr != "" then ($pr|tonumber) else null end), title:$t,
+               range:($from + ".." + $to), commits:$c}]')"
+      last_taken="$cur_key"; n=$((n + 1))
+      for m in $u_members; do
+        printf '%s %s\n' "${m:0:12}" "${cur_key:0:12}" >> "$WORK/UNITS.log"
+      done
+    fi
+    cur_key=""; cur_pr=""; u_members=""
+  }
   if [ -n "$base" ]; then
     known="$(known_shas)"
-    while IFS="$(printf '\t')" read -r sha subj; do
+    mkdir -p "$PR_CACHE" 2>/dev/null || true
+    while IFS="$(printf '\t')" read -r sha parents subj; do
       [ -n "$sha" ] || continue
-      printf '%s\n' "$known" | grep -qxF "${sha:0:12}" && continue
-      if [ -n "$IGNORE_RE" ] && printf '%s' "$subj" | grep -qE -- "$IGNORE_RE"; then
-        printf '%s %s none triage_ignore\n' "${sha:0:12}" "$NOW_ISO" >> "$WORK/TRIAGED.log"
-        ignored=$((ignored + 1)); continue
+      if printf '%s\n' "$known" | grep -qxF "${sha:0:12}"; then flush; continue; fi
+      pr=""; kind=commit; title="$subj"; from="${parents%% *}"
+      case "$parents" in
+        (*" "*)  # a merge commit: the change is everything its second parent brought in
+          kind=merge
+          pr="$(printf '%s' "$subj" | sed -nE 's/^Merge pull request #([0-9]+) .*/\1/p')"
+          body="$(git -C "$SRC" log -1 --format=%b "$sha" 2>/dev/null | sed -n '/./{p;q;}')"
+          [ -n "$body" ] && title="$body" ;;
+        (*)
+          pr="$(printf '%s' "$subj" | sed -nE 's/.*\(#([0-9]+)\)$/\1/p')"
+          if [ -n "$pr" ]; then
+            kind=squash; title="$(printf '%s' "$subj" | sed -E 's/ *\(#[0-9]+\)$//')"
+          elif [ -f "$PR_CACHE/$sha" ]; then
+            pr="$(cat "$PR_CACHE/$sha")"; [ -n "$pr" ] && kind=rebase
+          elif [ "$LOOKUP_MAX" -eq 0 ]; then
+            :   # lookups switched off: an unmarked commit is its own unit
+          elif [ "$lookups" -ge "$LOOKUP_MAX" ]; then
+            stopped="$sha"; break
+          else
+            lookups=$((lookups + 1))
+            if ! pr="$(gh_api "repos/$SRC_PATH/commits/$sha/pulls" \
+                       --jq '[.[] | select(.merged_at != null)][0].number // empty' 2>/dev/null)"; then
+              stopped="$sha"; lookup_failed=1; break
+            fi
+            printf '%s' "$pr" > "$PR_CACHE/$sha" 2>/dev/null || true
+            [ -n "$pr" ] && kind=rebase
+          fi ;;
+      esac
+      if [ "$kind" = rebase ] && [ -n "$cur_key" ] && [ "$pr" = "$cur_pr" ]; then
+        u_members="$u_members $cur_key"   # the earlier commit becomes a member
+        cur_key="$sha"; u_count=$((u_count + 1)); continue   # next commit of the same PR
       fi
-      [ "$n" -ge "$BATCH" ] && { n=$((n + 1)); continue; }
-      triage="$(printf '%s' "$triage" | jq -c --arg sha "${sha:0:12}" --arg s "$subj" '. + [{id:$sha, sha:$sha, subject:$s}]')"
-      last_taken="$sha"
-      n=$((n + 1))
+      flush
+      cur_key="$sha"; cur_pr="$pr"; u_kind="$kind"; u_title="$title"; u_from="$from"; u_count=1; u_members=""
+      if [ "$kind" = merge ]; then
+        u_count="$(git -C "$SRC" rev-list --count "$from..$sha" 2>/dev/null || echo 1)"
+      fi
     done <<EOF
-$(git -C "$SRC" log --reverse --no-merges --format='%H%x09%s' "$base..$head" 2>/dev/null)
+$(git -C "$SRC" log --reverse --first-parent --format='%H%x09%P%x09%s' "$base..$head" 2>/dev/null)
 EOF
+    if [ -z "$stopped" ]; then
+      flush
+    else
+      # only a rebase-merged PR can still gain commits past the stop: it waits whole for
+      # the next sweep; any other unit in hand is complete
+      if [ "$u_kind" = rebase ]; then cur_key=""; else flush; fi
+    fi
+    if [ -z "$stopped" ]; then :
+    elif [ -n "$lookup_failed" ]; then
+      log "the pull-request lookup for ${stopped:0:12} failed — triage stops there this run"
+      [ "$n" -eq 0 ] && fail_out "cannot look up pull requests on $SOURCE_REPO_V — check the GitHub connection for its host"
+    else
+      log "pull-request lookups capped at $LOOKUP_MAX this run — the rest wait for the next sweep"
+    fi
   fi
-  [ "$ignored" -gt 0 ] && log "$ignored commit(s) matched triage_ignore and were logged as triaged"
-  [ "$n" -gt "$BATCH" ] && log "$n untriaged commits; this run takes $BATCH, the rest wait for the next sweep"
-  log "$( [ "$n" -gt "$BATCH" ] && echo "$BATCH" || echo "$n") commit(s) to triage on $SOURCE_BRANCH_V past ${boundary:-<no release>}"
+  [ "$ignored" -gt 0 ] && log "$ignored change(s) matched triage_ignore and were logged as triaged"
+  [ "$n" -gt "$BATCH" ] && log "$n untriaged changes; this run takes $BATCH, the rest wait for the next sweep"
+  log "$( [ "$n" -gt "$BATCH" ] && echo "$BATCH" || echo "$n") change(s) to triage on $SOURCE_BRANCH_V past ${boundary:-<no release>}"
 
   # ---- verified corrections waiting to be fixed: never left published
   local fixes
@@ -223,10 +317,10 @@ EOF
   # the commit the docs will describe once it lands (the last one taken when batched)
   local update='[]' pin="$head"
   if [ "$RELEASE_MODEL_V" = main ]; then
-    [ "$n" -gt "$BATCH" ] && pin="$last_taken"
+    { [ "$n" -gt "$BATCH" ] || [ -n "$stopped" ]; } && pin="$last_taken"
     if [ "$(printf '%s' "$triage" | jq length)" -gt 0 ]; then
       update="$(jq -nc --arg pin "$pin" --arg prev "$LAST_BOUNDARY" '[{id:$pin[0:12], pin:$pin, previous:$prev}]')"
-    elif [ "$head" != "$LAST_BOUNDARY" ]; then
+    elif [ -z "$stopped" ] && [ "$head" != "$LAST_BOUNDARY" ]; then
       # every commit past the pin is already accounted for (triaged, or matched
       # triage_ignore): nothing to write, so moving the pin is bookkeeping, done here
       printf '%s\n' "$head" > "$BOUNDARY_FILE.tmp" && mv -f "$BOUNDARY_FILE.tmp" "$BOUNDARY_FILE"

@@ -73,7 +73,7 @@ if [ "$STRUCTURE" = 1 ]; then
   [ -d "$WORK" ] && ok work_dir "work/ present" || fail work_dir "work/ missing" "ONBOARDING.md → Step 2"
   [ -d "$WORK/.git" ] && fail work_not_repo "work/.git exists" "move it away; work/ is never a git repo" \
                       || ok work_not_repo "work/ is a plain directory"
-  for s in AGENTS.md QUEUE-counter TRIAGED.log VERIFIED.log STYLE.md MEMORY.md logs/RELEASES.log logs/AUDIT.log; do
+  for s in AGENTS.md QUEUE-counter TRIAGED.log UNITS.log VERIFIED.log STYLE.md MEMORY.md logs/RELEASES.log logs/AUDIT.log; do
     [ -e "$WORK/$s" ] && ok "seed_$s" "present" || fail "seed_$s" "work/$s missing" "ONBOARDING.md → Step 2b"
   done
   if grep -qxF '| id | status | kind | ref | page | note | evidence | updated |' "$WORK/QUEUE.md" 2>/dev/null; then
