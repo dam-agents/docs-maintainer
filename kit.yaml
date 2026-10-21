@@ -7,18 +7,14 @@ schemaVersion: v1
 id: docs-maintainer
 name: Docs Maintainer
 description: >-
-  Catches the documentation drift code reviews miss. It runs after the merge,
-  alongside your normal docs-in-the-pull-request habit, for any pair of GitHub
-  repositories (github.com or GitHub Enterprise; the docs may live in the source
-  repo itself). A weekday sweep reads each newly merged pull request once, checks
-  the docs against it, and fixes any published claim it verifies wrong as a small
-  pull request. For software users run from tagged
-  releases, new work waits in the queue and each stable release gets one thorough
-  pull request; for software users run from main, new commits are documented the
-  day they land, in one rolling update pull request.
-  Nothing reaches the site unless the agent traced it at the release itself. A
-  weekly self-audit checks its own health. Reports to a Slack or Telegram
-  channel only when you opt in, and never on a quiet day.
+  Catches the documentation drift code reviews miss. Runs after merges, alongside
+  your usual docs-in-the-PR habit, for any two GitHub repositories (github.com or
+  GitHub Enterprise; docs can live in the source repo). A weekday sweep checks each
+  merged PR and opens small fixes for verified errors. Tagged-release projects get
+  one thorough PR per stable release; main-based projects get one rolling PR,
+  updated as commits land. Nothing reaches the site unverified against the release.
+  A weekly self-audit checks its health. Optional Slack or Telegram reports send
+  only when there's something to report.
 tagline: Catches the docs drift code reviews miss.
 category: software
 icon: book
