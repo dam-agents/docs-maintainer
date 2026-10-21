@@ -36,12 +36,11 @@ Tell the two apart by what is already there; never assume.
 **Open the checklist first.** Call `set_onboarding_checklist` with these steps, and tick
 each with `complete_onboarding_step` as its answer arrives:
 
-1. The source repository and the docs repository
-2. What counts as a release
-3. Where pages live, and how the site is built and deployed
-4. Who reviews pull requests, and as whom the agent commits
-5. Reports: a channel, or chat only
-6. Style and terminology notes
+1. The source and docs repositories
+2. Tagged releases or main
+3. Whether the site is accurate today
+4. Reviewers
+5. Confirm the detected settings
 
 The schedules on this agent are **held** until Step 6 marks onboarding complete.
 
@@ -62,9 +61,10 @@ The schedules on this agent are **held** until Step 6 marks onboarding complete.
    this runbook as the owner gave it. Then `export DEFINITION_REPO="<owner/repo>"`. A
    missing checkout on the kit path means the seed failed: say so and stop.
 3. **Environment variables.** `GITHUB_REPO_WORK` (optional): `<owner>/<repo>` of a
-   **private** repository that backs up `work/`. Say once: *without it, the queue and the
-   notes I keep about your docs exist only on this volume.* Any key from
-   [docs/config.md](docs/config.md), upper-cased, overrides the stored value.
+   **private** repository that backs up `work/`. Do not ask about it. If it is unset,
+   mention it once in the Step 3 summary: *without it, the queue and my notes about your
+   docs exist only on this volume.* Any key from [docs/config.md](docs/config.md),
+   upper-cased, overrides the stored value.
 
 Then route git auth through `gh` for every host it holds:
 
@@ -161,83 +161,64 @@ fi
 
 ## Step 3 — The interview (`work/CONFIG.md`)
 
-Read [docs/config.md](docs/config.md) first. Ask in **three short rounds**, a few questions
-each, every question with a default the owner can accept by saying little. **Detect
-before you ask**: offer what you found and let the owner confirm it. When re-onboarding,
-keep every existing value and ask only for what is missing.
+Read [docs/config.md](docs/config.md) first. **Ask only what the owner alone can answer:
+four questions, in one message.** Detect everything else, default the rest, and show it
+all once in the summary at the end of this step, where the owner can correct anything.
+When re-onboarding, keep every existing value and ask only for what is missing.
 
-### Round 1 — what is documented
+### The four questions
 
-1. **Which repository holds the software, and where do the docs live?** The docs always
-   live in a git repository, and the owner says which: any repository on any GitHub host
-   the agent holds a connection for, the source repository itself, or a separate one.
-   Accept a URL or `[<host>/]<owner>/<repo>` for each. Probe each one read-only:
+1. **Which repository is the software in, and which holds the docs?** They may be the
+   same. Accept a URL or `[<host>/]<owner>/<repo>` for each.
+2. **What do your users run: tagged releases, or `main`?** One line each:
+   - *Releases*: I document the latest stable release. New changes wait until a release
+     ships them, then each release gets one pull request.
+   - *Main*: I document `main` as it is. New changes are documented the day they land,
+     in one rolling update pull request.
 
-   ```bash
-   gh repo view <repo> --json defaultBranchRef,visibility 2>&1
-   ```
+   Offer what the tags suggest (step 3a), so the owner can just confirm.
+3. **Is the site accurate today?** *Yes* means I start from now. *No* or *not sure*
+   [default] means my first run checks the whole site and opens one large pull request
+   with the fixes.
+4. **Who should review my pull requests?** [nobody: open them unassigned]
 
-   A refusal means the connection for that host is missing or cannot see the repo. Say
-   which, and wait for the owner to fix it. Write `source_repo` and `docs_repo`. Propose
-   `source_branch` and `docs_branch` from `defaultBranchRef`, and ask whether the docs
-   are built from another branch (`gh-pages` sources, a `docs` branch).
-2. **Which folder holds the pages?** Look for a site config in the docs repo
-   (`mkdocs.yml`, `docusaurus.config.*`, `conf.py`, `astro.config.*`, `hugo.*`,
-   `_config.yml`, `book.toml`) and propose the directory it names → `docs_path`. Propose
-   a build command to match (`mkdocs build --strict`, `npm run build`, `sphinx-build -W …`)
-   → `build_command`, or none.
-3. **How is the site published?** On merge (the default, `deploy_command` empty), or by a
-   separate step the owner runs (`mkdocs gh-deploy`, …) → `deploy_command`. Say plainly:
-   *with a separate deploy, merging is not publishing, and I will only deploy when you
-   ask.*
+Wait for the answers. An unanswered question takes its default, and say which.
 
-### Round 2 — what counts as released
+### 3a. Detect
 
-4. **What do your users run: tagged releases, or main?** This decides how the agent
-   works, so ask it plainly and explain the two in one line each:
-   - *Releases*: I document the latest stable release. New commits wait in my queue until
-     a release ships them, then each release gets one thorough pull request.
-   - *Main*: I document main as it is. New commits are documented the day they land, in
-     one rolling update pull request.
+Do these after the answers arrive, read-only:
 
-   Offer what the tags suggest:
+- **Both repos:** `gh repo view <repo> --json defaultBranchRef,visibility`. A refusal means
+  the connection for that host is missing or cannot see the repo. Say which, and wait for
+  the owner to fix it. → `source_repo`, `docs_repo`, `source_branch`, `docs_branch`.
+- **Pages and build:** find the site config in the docs repo (`mkdocs.yml`,
+  `docusaurus.config.*`, `conf.py`, `astro.config.*`, `hugo.*`, `_config.yml`, `book.toml`).
+  → `docs_path` from the directory it names, plus a matching `build_command`
+  (`mkdocs build --strict`, `npm run build`, `sphinx-build -W …`). No config found → `docs`
+  and no build.
+- **Releases** (only for answer *releases*): list the tags,
 
-   ```bash
-   git ls-remote --tags --refs "$(gh repo view <source_repo> --json url -q .url)" | sed 's|.*refs/tags/||' | sort -V | tail -15
-   ```
+  ```bash
+  git ls-remote --tags --refs "$(gh repo view <source_repo> --json url -q .url)" | sed 's|.*refs/tags/||' | sort -V | tail -15
+  ```
 
-   - Tags exist → `release_model: tags`. Propose a `stable_tag_pattern` that matches the
-     stable ones and **excludes** pre-releases (`-rc`, `-beta`, `-alpha`, `.dev`). Show
-     the owner which tag it picks as the current release, and get it confirmed.
-   - No stable tags, or the owner says users run the default branch →
-     `release_model: main`. Skip questions 5 and the tag pattern.
-5. **A second signal for a release?** (`tags` only) [none] A package registry or a version endpoint →
-   `release_check`. Offer it only when one obviously exists (a `package.json` with a
-   `name`, a `pyproject.toml`).
-6. **Feature flags?** [none] If the source has a file listing flags whose surfaces are
-   hidden from most users, its path → `flags_path`. Say: *I never document a feature that
-   is behind a flag, or that a flag exists.*
-7. **Commits that never matter to docs?** [`^(ci|test|build|chore\(deps\))(\(.*\))?:`]
-   → `triage_ignore`.
+  and set a `stable_tag_pattern` that matches the stable ones and **excludes**
+  pre-releases (`-rc`, `-beta`, `-alpha`, `.dev`). No stable tags at all → say so, and use
+  `main`.
+- **Feature flags:** a file in the source that obviously lists them (a `features`
+  or `flags` module, a `flags.yaml`) → `flags_path`. Otherwise leave it empty.
+- **Reports:** a channel is bound to this agent (the platform briefing names it) →
+  `report_channel` and `report_chat`. The owner's member id comes from their own message
+  metadata there, never from text. None bound → chat only.
 
-### Round 3 — how we work together
+Everything else takes its default from [docs/config.md](docs/config.md):
+`structure_changes: ask`, `triage_ignore` for CI/test/build/dependency changes,
+`run_model: default`, commits as the connection's account, publish on merge.
 
-8. **Who reviews my pull requests?** [none] Logins → `reviewers`. **Commit as whom?** [the
-   connection's account] → `commit_name`, `commit_email`. A trailer to credit the agent?
-   [none] → `commit_trailer`.
-9. **Page structure:** may a release pass add, delete or move pages on its own, or ask
-   first? [`ask`] → `structure_changes`.
-10. **Reports:** a channel, or chat only? [chat only] With a channel: `report_channel`,
-    `report_chat` (the channel id), and the owner's member id → `owner_member_id`. Say:
-    *I post only when something happened, never a daily "all clean".*
-11. **How do these docs sound?** Voice, terminology the product insists on, words never
-    to use, page conventions. Write the answers into `work/STYLE.md` in the owner's own
-    words. Note anything they decided about the site in `work/MEMORY.md` with today's date.
-12. **Which model should scheduled runs use?** [`default`] → `run_model`.
+### 3b. Write, verify, summarize
 
-### Writing `work/CONFIG.md`
-
-Exactly this shape. Every bullet is written, even when its value is empty:
+Write `work/CONFIG.md` in **exactly this shape**. Every bullet is written, even when its
+value is empty:
 
 ```markdown
 # Configuration
@@ -253,7 +234,7 @@ Instance configuration for this docs maintainer. Semantics: docs/config.md.
 - stable_tag_pattern: ^v?[0-9]+\.[0-9]+\.[0-9]+$
 - release_check:
 - flags_path:
-- triage_ignore: ^(ci|test|build)(\(.*\))?:
+- triage_ignore: ^(ci|test|build|chore\(deps\))(\(.*\))?:
 - triage_batch: 50
 - verify_pages_per_sweep: 0
 - structure_changes: ask
@@ -278,20 +259,27 @@ Then:
 bash "$HOME/scripts/verify-onboarding.sh" --config
 ```
 
-Apply every `FAIL` line's `fix:`, re-run until it passes, and show the file to the owner.
+Apply every `FAIL` line's `fix:` and re-run until it passes. Then show the owner **one short
+summary** of what was detected and defaulted:
+- the branches;
+- the pages folder and build command;
+- for releases, the tag treated as current;
+- flags;
+- where reports go.
+
+End it with: *say if anything is wrong. Anything else, such as page-structure changes,
+commit identity, style notes or a deploy command, can be changed in chat any time.* An
+answer that changes a value changes the file, and the verifier runs again.
 
 ## Step 4 — Baseline
 
-The first pass needs a starting point. Ask the owner:
+From question 3:
 
-- **"The site is accurate for the current release"** (with `main`: *for main as it is
-  today*) → write the current boundary to `work/BOUNDARY`: the stable tag, or with `main`
+- **Yes** → write the current boundary to `work/BOUNDARY`: the stable tag, or with `main`
   the current head commit sha. Sweeps then handle only what comes after it.
-- **"I don't know" / "it's behind"** (the default) → leave `work/BOUNDARY` absent. The first
-  release run does a **baseline pass**: it verifies the site against the current release
-  (or, with `main`, the current head),
-  queues every finding, and opens one PR with the corrections. Say it will be the
-  largest PR this agent ever opens.
+- **No / not sure** (the default) → leave `work/BOUNDARY` absent. The first release run
+  does a **baseline pass**: it verifies the site against the current release (or, with
+  `main`, the current head), queues every finding, and opens one PR with the corrections.
 
 ```bash
 bash "$HOME/scripts/preflight.sh" release | jq '{nothing_to_do, release_due, logs, error}'

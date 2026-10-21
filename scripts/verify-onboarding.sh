@@ -125,7 +125,7 @@ else
   fi
   if [ -n "$(cfg report_channel)" ]; then
     [ -n "$(cfg report_chat)" ] && ok report_chat "set" \
-      || fail report_chat "report_channel set but report_chat empty" "ONBOARDING.md → Step 3, question 10"
+      || fail report_chat "report_channel set but report_chat empty" "set it from the bound channel (ONBOARDING.md → Step 3), or clear report_channel"
   fi
   # every bullet must be a known key — a typo is invisible to the runtime
   while IFS= read -r k; do

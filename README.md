@@ -30,7 +30,7 @@ This repository is available as a DAM Starter Kit through `kit.yaml`.
 2. Grant access to GitHub or GitHub Enterprise. Connect each host if the source and docs repositories use different hosts.
 3. Optionally connect Slack or Telegram for reports.
 4. Name the agent and create it.
-5. Complete the onboarding interview to confirm the repositories, release process, and documentation settings.
+5. Answer four onboarding questions: which repositories, tagged releases or main, whether the docs are accurate today, and who reviews. The agent detects the rest and shows it to you to confirm.
 
 The agent configures its schedules after onboarding is complete.
 
