@@ -32,7 +32,7 @@ This repository is available as a DAM Starter Kit through `kit.yaml`.
 4. Name the agent and create it.
 5. Answer four onboarding questions: which repositories, tagged releases or main, whether the docs are accurate today, and who reviews. The agent detects the rest and shows it to you to confirm.
 
-The agent configures its schedules after onboarding is complete.
+The agent configures its schedules after onboarding is complete: three with tagged releases, two with main (no release check).
 
 ### Without the Starter Kit catalog
 

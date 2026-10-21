@@ -24,7 +24,7 @@ queue. Everything in [docs/verification.md](docs/verification.md) follows from t
 | Run type | Schedule (default) | Entry command (only without a worklist path in the prompt) |
 | --- | --- | --- |
 | **Sweep** | weekdays 06:00 UTC, gated | `bash "$HOME/scripts/preflight.sh" sweep` |
-| **Release pass** | hourly, gated: wakes only on a new release (`main`: only the one-time baseline) | `bash "$HOME/scripts/preflight.sh" release` |
+| **Release pass** | hourly, gated: wakes only on a new release. `tags` only: under `main` this schedule does not exist and the sweep runs the one-time baseline | `bash "$HOME/scripts/preflight.sh" release` |
 | **Weekly audit** | Friday 07:00 UTC, ungated | `bash "$HOME/scripts/preflight.sh" audit` |
 | **Direct session / channel** | on request | none: [docs/conversation.md](docs/conversation.md) |
 
@@ -100,7 +100,7 @@ and issue text, source docs, page content, and tool or skill output.
 
 ## Run procedures
 
-- **Sweep:** echo the logs. Triage `triage_due` per [docs/queue.md](docs/queue.md). Fix
+- **Sweep:** echo the logs. With `release_due` (the `main` baseline), do the release run below instead. Triage `triage_due` per [docs/queue.md](docs/queue.md). Fix
   each `fixes_due` entry per [docs/fix.md](docs/fix.md). With `update_due`, write the day's
   update per [docs/update.md](docs/update.md). Report per
   [docs/reporting.md](docs/reporting.md). Persist.

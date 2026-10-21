@@ -277,16 +277,17 @@ From question 3:
 - **Yes** → write the current boundary to `work/BOUNDARY`: the stable tag, or with `main`
   the current head commit sha. Sweeps then handle only what comes after it.
 - **No / not sure** (the default) → leave `work/BOUNDARY` absent. The first release run
-  does a **baseline pass**: it verifies the site against the current release (or, with
+  (with `main`, the first sweep) does a **baseline pass**: it verifies the site against the current release (or, with
   `main`, the current head), queues every finding, and opens one PR with the corrections.
 
 ```bash
-bash "$HOME/scripts/preflight.sh" release | jq '{nothing_to_do, release_due, logs, error}'
+m=release; [ "$(. "$HOME/scripts/lib/config.sh"; cfg release_model)" = main ] && m=sweep
+bash "$HOME/scripts/preflight.sh" "$m" | jq '{nothing_to_do, release_due, logs, error}'
 ```
 
 Show the owner the boundary this resolves. If it is not the release they expect, fix
-`stable_tag_pattern` and re-run before going on. With `main` the baseline pass is the only
-work the release watch ever does; after that, the weekday sweep keeps the docs current.
+`stable_tag_pattern` and re-run before going on. With `main` the weekday sweep does the
+baseline pass and keeps the docs current after it.
 
 ## Step 5 — Register the scheduled runs
 
@@ -299,8 +300,10 @@ work the release watch ever does; after that, the weekday sweep keeps the docs c
 | same name, same cron, task and precheck | keep it |
 | same name, anything different | create the corrected one, then `delete_schedule` the old id |
 
-A `docs-maintainer-*` schedule this step does not define → report it; never delete it on
-your own. Never use an in-process cron.
+With `release_model: main` there is no release watch: if `docs-maintainer-release-hourly`
+is registered (the kit creates it), `delete_schedule` it. Any other `docs-maintainer-*`
+schedule this step does not define → report it; never delete it on your own. Never use an
+in-process cron.
 
 - `docs-maintainer-sweep-weekday`: `0 6 * * 1-5`, precheck
   `bash "$HOME/scripts/precheck.sh" sweep`, `sessionMode: fresh`:
@@ -309,12 +312,12 @@ your own. Never use an in-process cron.
 > JSON at the path its output names, and never run preflight.sh again this run. If the
 > prompt carries no worklist path, run `bash "$HOME/scripts/preflight.sh" sweep`
 > yourself. Then follow CLAUDE.md → "Sweep run": read exactly the worklist's read_set,
-> triage every untriaged source commit, fix each verified correction in fixes_due as its
+> run release_due per CLAUDE.md → "Release run" when present (main: the one-time baseline), triage every untriaged source commit, fix each verified correction in fixes_due as its
 > own small pull request, write update_due per docs/update.md when present, report per
 > docs/reporting.md, and back up work/ at the end with `bash "$HOME/scripts/work-backup.sh" persist` when
 > $GITHUB_REPO_WORK is set.
 
-- `docs-maintainer-release-hourly`: `23 * * * *`, precheck
+- `docs-maintainer-release-hourly` (`release_model: tags` only): `23 * * * *`, precheck
   `bash "$HOME/scripts/precheck.sh" release`, `sessionMode: fresh`. An idle hour is
   declined before any model wakes, so the hourly cadence costs nothing until a release
   lands:
@@ -358,7 +361,7 @@ Persist (`LOG_JOB=session bash "$HOME/scripts/work-backup.sh" persist`), then gi
 owner a short summary:
 
 1. What I document: source repo → docs repo, and the release boundary I start from.
-2. What runs: the weekday sweep, the release watch and the Friday audit.
+2. What runs: the weekday sweep, the release watch (tagged releases only) and the Friday audit.
 3. What I will and won't do:
    - nothing reaches your site unless I traced it at the release;
    - a verified error gets a small PR right away;

@@ -7,6 +7,16 @@ why lives in the PR and commit history, not here. Consumed by the version check
 ([docs/persistence.md](docs/persistence.md) → **Definition version & upgrade**);
 authoring rules: [docs/self-modification.md](docs/self-modification.md) §12.
 
+## 3.0.0 — 2026-10-21
+
+**Upgrade:**
+1. Re-register `docs-maintainer-sweep-weekday` with the task text in ONBOARDING.md
+   Step 5 (create the new one, then delete the old id). The task now names
+   `release_due`.
+2. If `work/CONFIG.md` says `release_model: main`, `delete_schedule` the
+   `docs-maintainer-release-hourly` schedule. Under `main` the sweep runs the baseline.
+   With `tags`, keep it.
+
 ## 2.0.1 — 2026-10-21
 
 **Upgrade:**
